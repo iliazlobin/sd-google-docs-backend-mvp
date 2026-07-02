@@ -44,7 +44,7 @@ jobs:
         env:
           DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
       - name: Run functional tests
-        run: pytest tests/functional/ -v
+        run: PYTHONPATH=src pytest tests/functional/ -v
         env:
           DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
           REDIS_URL: redis://localhost:6379/0
