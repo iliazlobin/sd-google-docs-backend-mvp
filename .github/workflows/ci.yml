@@ -1,10 +1,12 @@
-name: CI
+name: Google Docs MVP CI (white-box unit tests)
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: "17 13 * * *"
 
 env:
   APP_PORT: 8010
@@ -14,13 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/ruff-action@v3
         with:
-          python-version: "3.12"
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
-      - name: Ruff lint
+          version: "0.15.20"
+      - name: Check formatting
+        run: ruff format --check src/ tests/ verify/
+      - name: Lint
         run: ruff check src/ tests/ verify/
 
   test:
@@ -33,9 +34,9 @@ jobs:
           POSTGRES_PASSWORD: googledocs
           POSTGRES_DB: googledocs
         options: >-
-          --health-cmd pg_isready -U googledocs
-          --health-interval 5s
-          --health-timeout 3s
+          --health-cmd "pg_isready -U googledocs"
+          --health-interval 10s
+          --health-timeout 5s
           --health-retries 5
         ports:
           - 5432:5432
@@ -43,8 +44,8 @@ jobs:
         image: redis:7-alpine
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 3s
+          --health-interval 10s
+          --health-timeout 5s
           --health-retries 5
         ports:
           - 6379:6379
@@ -57,24 +58,16 @@ jobs:
         run: |
           pip install -e ".[dev]"
       - name: Run unit tests
-        run: pytest tests/ -v
+        run: pytest tests/unit/ -v
         env:
           DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
           REDIS_URL: redis://localhost:6379/0
-
-  docker-build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build Docker image
-        run: docker build .
-
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - name: Create .env from example
         run: cp .env.example .env
+      - name: Install docker compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose-plugin
       - name: Build and start stack
         run: docker compose up -d --wait --build
       - name: Run database migrations
