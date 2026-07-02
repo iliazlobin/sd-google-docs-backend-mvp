@@ -47,8 +47,18 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 6379:6379
     env:
       DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
+      REDIS_URL: redis://localhost:6379/0
       APP_PORT: 8010
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +84,7 @@ jobs:
           done
         env:
           DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
+          REDIS_URL: redis://localhost:6379/0
       - name: Acceptance tests
         run: API_BASE_URL=http://localhost:8010 pytest verify/acceptance/ -v
       - name: Stop server
