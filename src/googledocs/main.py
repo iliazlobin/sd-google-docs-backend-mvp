@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from googledocs.database import engine
 from googledocs.redis import close_redis, init_redis
+from googledocs.routers import documents, ws_edit, ws_presence
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,11 @@ def create_app() -> FastAPI:
     @app.get("/healthz")
     async def healthz():
         return {"status": "ok"}
+
+    # Register routers
+    app.include_router(documents.router)
+    app.include_router(ws_edit.router)
+    app.include_router(ws_presence.router)
 
     return app
 
