@@ -40,7 +40,9 @@ async def ws_edit(
     result = await session.execute(stmt)
     doc = result.scalar_one_or_none()
     if doc is None:
-        await ws.send_json({"type": "error", "code": "DOC_NOT_FOUND", "message": "Document not found"})
+        await ws.send_json(
+            {"type": "error", "code": "DOC_NOT_FOUND", "message": "Document not found"}
+        )
         await ws.close(code=4004)
         return
 
@@ -55,12 +57,20 @@ async def ws_edit(
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
-                await ws.send_json({"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"})
+                await ws.send_json(
+                    {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"}
+                )
                 continue
 
             op_type = msg.get("type")
             if op_type not in ("insert", "delete"):
-                await ws.send_json({"type": "error", "code": "INVALID_MESSAGE", "message": f"Unknown type: {op_type}"})
+                await ws.send_json(
+                    {
+                        "type": "error",
+                        "code": "INVALID_MESSAGE",
+                        "message": f"Unknown type: {op_type}",
+                    }
+                )
                 continue
 
             position = msg.get("position")
@@ -70,7 +80,13 @@ async def ws_edit(
             length = msg.get("length")
 
             if position is None or base_rev is None:
-                await ws.send_json({"type": "error", "code": "INVALID_MESSAGE", "message": "Missing position or rev"})
+                await ws.send_json(
+                    {
+                        "type": "error",
+                        "code": "INVALID_MESSAGE",
+                        "message": "Missing position or rev",
+                    }
+                )
                 continue
 
             try:

@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import select
@@ -72,9 +72,7 @@ class OTEngine:
         """Return ops in the buffer with revision > base_rev (concurrent ops)."""
         return [op for op in buffer if op.revision > base_rev]
 
-    def _transform_against(
-        self, client_op: TransOp, concurrent: BufferedOp
-    ) -> TransOp | None:
+    def _transform_against(self, client_op: TransOp, concurrent: BufferedOp) -> TransOp | None:
         """Transform client_op against one concurrent op. Returns None if absorbed."""
         c = TransOp(
             type=concurrent.type,
@@ -102,7 +100,7 @@ class OTEngine:
         text: str | None = None,
         length: int | None = None,
     ) -> tuple[int, str]:
-        """Accept a client op, transform, apply, persist, and return (new_revision, updated_content).
+        """Accept a client op, transform, apply, persist, return (revision, updated_content).
 
         Does NOT hold the per-document lock — the caller must hold OTEngine.lock_for(doc_id)
         and commit the session inside it.
@@ -118,19 +116,15 @@ class OTEngine:
 
         # Check if the base revision is too old — the client missed ops
         # that have fallen off the ring buffer and can't be transformed against.
-        if (
-            buffer
-            and base_rev < buffer[0].revision
-            and len(buffer) >= buffer.maxlen
-        ):
+        if buffer and base_rev < buffer[0].revision and len(buffer) >= buffer.maxlen:
             raise StaleRevisionError(
                 f"Client rev {base_rev} is behind oldest buffered rev {buffer[0].revision} "
                 "and buffer is full. Reload the document."
             )
 
         # Fetch the document — expire any cached copy to force a fresh read from DB
-        stmt = select(Document).where(Document.id == doc_id).execution_options(
-            populate_existing=True
+        stmt = (
+            select(Document).where(Document.id == doc_id).execution_options(populate_existing=True)
         )
         result = await self._session.execute(stmt)
         doc = result.scalar_one()
@@ -173,19 +167,16 @@ class OTEngine:
         if client_op.type == "insert":
             insert_text = client_op.text or ""
             doc.content = (
-                doc.content[: client_op.position]
-                + insert_text
-                + doc.content[client_op.position :]
+                doc.content[: client_op.position] + insert_text + doc.content[client_op.position :]
             )
         elif client_op.type == "delete":
             del_len = client_op.length or 0
             doc.content = (
-                doc.content[: client_op.position]
-                + doc.content[client_op.position + del_len :]
+                doc.content[: client_op.position] + doc.content[client_op.position + del_len :]
             )
 
         doc.revision = new_rev
-        doc.updated_at = datetime.now(timezone.utc)
+        doc.updated_at = datetime.now(UTC)
 
         await self._session.flush()
 

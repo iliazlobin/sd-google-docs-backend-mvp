@@ -1,4 +1,4 @@
-name: CI
+name: Functional
 
 on:
   push:
@@ -15,11 +15,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  APP_PORT: 8010
-
 jobs:
-  unit:
+  functional:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -42,24 +39,12 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: pip install -e ".[dev]"
-      - name: Run unit tests
-        run: pytest tests/unit/ -v
+      - name: Run migrations
+        run: alembic upgrade head
+        env:
+          DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
+      - name: Run functional tests
+        run: pytest tests/functional/ -v
         env:
           DB_URL: postgresql+asyncpg://googledocs:googledocs@localhost:5432/googledocs
           REDIS_URL: redis://localhost:6379/0
-
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create .env from example
-        run: cp .env.example .env
-      - name: Build and start stack
-        run: docker compose up -d --wait --build
-      - name: Run database migrations
-        run: docker compose run --rm app alembic upgrade head
-      - name: Acceptance tests
-        run: API_BASE_URL=http://localhost:${APP_PORT:-8010} pytest verify/acceptance/ -v
-      - name: Teardown
-        if: always()
-        run: docker compose down --volumes

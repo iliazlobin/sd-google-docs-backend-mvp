@@ -33,11 +33,13 @@ class PresenceService:
             "user_name": user_name,
             "ts": time.time(),
         }
-        payload = json.dumps({
-            "type": "presence",
-            "doc_id": doc_id,
-            "cursors": doc_cursors,
-        })
+        payload = json.dumps(
+            {
+                "type": "presence",
+                "doc_id": doc_id,
+                "cursors": doc_cursors,
+            }
+        )
         try:
             await self._redis.publish(f"presence:{doc_id}", payload)
         except Exception:
@@ -50,11 +52,13 @@ class PresenceService:
             doc_cursors.pop(user_id, None)
             if not doc_cursors:
                 self._cursors.pop(doc_id, None)
-        payload = json.dumps({
-            "type": "presence",
-            "doc_id": doc_id,
-            "cursors": self._cursors.get(doc_id, {}),
-        })
+        payload = json.dumps(
+            {
+                "type": "presence",
+                "doc_id": doc_id,
+                "cursors": self._cursors.get(doc_id, {}),
+            }
+        )
         try:
             await self._redis.publish(f"presence:{doc_id}", payload)
         except Exception:

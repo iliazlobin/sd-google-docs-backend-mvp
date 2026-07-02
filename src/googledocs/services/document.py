@@ -1,8 +1,9 @@
 """DocumentService — CRUD operations and content reconstruction from ops."""
 
+from datetime import UTC
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from googledocs.models.document import Document
@@ -46,13 +47,13 @@ class DocumentService:
     async def soft_delete(self, doc_id: UUID) -> bool:
         """Soft-delete a document. Returns True if the document was found (active or
         already deleted — idempotent)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         doc = await self.get_any(doc_id)
         if doc is None:
             return False
         if doc.deleted_at is None:
-            doc.deleted_at = datetime.now(timezone.utc)
+            doc.deleted_at = datetime.now(UTC)
             await self._session.flush()
         return True
 

@@ -39,12 +39,14 @@ async def test_client_b_receives_client_a_cursor():
             await asyncio.wait_for(ws.recv(), timeout=5.0)
 
             # Send cursor update
-            msg = json.dumps({
-                "type": "cursor",
-                "position": 42,
-                "user_id": "alice",
-                "user_name": "Alice",
-            })
+            msg = json.dumps(
+                {
+                    "type": "cursor",
+                    "position": 42,
+                    "user_id": "alice",
+                    "user_name": "Alice",
+                }
+            )
             await ws.send(msg)
 
             # Wait a bit for propagation
@@ -53,8 +55,8 @@ async def test_client_b_receives_client_a_cursor():
     async def client_b():
         async with websockets.connect(ws_url) as ws:
             # Discard initial snapshot
-            initial = await asyncio.wait_for(ws.recv(), timeout=5.0)
-            initial_data = json.loads(initial)
+            _initial = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            json.loads(_initial)  # drain, no need to capture
 
             # Then listen for presence updates (up to 5s)
             deadline = asyncio.get_event_loop().time() + 5.0
@@ -68,7 +70,7 @@ async def test_client_b_receives_client_a_cursor():
                         cursors = msg_data.get("cursors", {})
                         if "alice" in cursors:
                             break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
     # Start client B first so it's subscribed, then client A sends
@@ -109,12 +111,16 @@ async def test_both_clients_see_each_other():
         async with websockets.connect(ws_url) as ws:
             await ws.recv()  # discard snapshot
             # Send cursor
-            await ws.send(json.dumps({
-                "type": "cursor",
-                "position": 10,
-                "user_id": "alice",
-                "user_name": "Alice",
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "cursor",
+                        "position": 10,
+                        "user_id": "alice",
+                        "user_name": "Alice",
+                    }
+                )
+            )
             # Listen for bob's presence
             deadline = asyncio.get_event_loop().time() + 5.0
             while asyncio.get_event_loop().time() < deadline:
@@ -125,19 +131,23 @@ async def test_both_clients_see_each_other():
                         cursors = m.get("cursors", {})
                         if "bob" in cursors:
                             return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
     async def client_b():
         async with websockets.connect(ws_url) as ws:
             await ws.recv()  # discard snapshot
             # Send cursor
-            await ws.send(json.dumps({
-                "type": "cursor",
-                "position": 99,
-                "user_id": "bob",
-                "user_name": "Bob",
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "cursor",
+                        "position": 99,
+                        "user_id": "bob",
+                        "user_name": "Bob",
+                    }
+                )
+            )
             # Listen for alice's presence
             deadline = asyncio.get_event_loop().time() + 5.0
             while asyncio.get_event_loop().time() < deadline:
@@ -148,21 +158,19 @@ async def test_both_clients_see_each_other():
                         cursors = m.get("cursors", {})
                         if "alice" in cursors:
                             return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
 
     await asyncio.gather(client_a(), client_b())
 
     # Verify A saw Bob
     a_has_bob = any(
-        "bob" in m.get("cursors", {})
-        for m in received_a if m.get("type") == "presence"
+        "bob" in m.get("cursors", {}) for m in received_a if m.get("type") == "presence"
     )
     assert a_has_bob, f"Client A never saw Bob's cursor. Received: {received_a}"
 
     # Verify B saw Alice
     b_has_alice = any(
-        "alice" in m.get("cursors", {})
-        for m in received_b if m.get("type") == "presence"
+        "alice" in m.get("cursors", {}) for m in received_b if m.get("type") == "presence"
     )
     assert b_has_alice, f"Client B never saw Alice's cursor. Received: {received_b}"

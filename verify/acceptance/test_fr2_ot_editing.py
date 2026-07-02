@@ -43,13 +43,15 @@ async def test_concurrent_inserts_at_same_position_both_appear():
         async with websockets.connect(ws_url) as ws:
             await barrier.wait()  # sync with client B
             # Insert "Hello" at position 0, base rev 0
-            msg = json.dumps({
-                "type": "insert",
-                "position": 0,
-                "text": "Hello",
-                "rev": 0,
-                "user_id": "client-a",
-            })
+            msg = json.dumps(
+                {
+                    "type": "insert",
+                    "position": 0,
+                    "text": "Hello",
+                    "rev": 0,
+                    "user_id": "client-a",
+                }
+            )
             await ws.send(msg)
 
             # Collect all responses (ack + op broadcast)
@@ -57,20 +59,22 @@ async def test_concurrent_inserts_at_same_position_both_appear():
                 try:
                     raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
                     received_a.append(json.loads(raw))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
 
     async def client_b():
         async with websockets.connect(ws_url) as ws:
             await barrier.wait()  # sync with client A
             # Insert "World" at position 0, base rev 0
-            msg = json.dumps({
-                "type": "insert",
-                "position": 0,
-                "text": "World",
-                "rev": 0,
-                "user_id": "client-b",
-            })
+            msg = json.dumps(
+                {
+                    "type": "insert",
+                    "position": 0,
+                    "text": "World",
+                    "rev": 0,
+                    "user_id": "client-b",
+                }
+            )
             await ws.send(msg)
 
             # Collect all responses
@@ -78,7 +82,7 @@ async def test_concurrent_inserts_at_same_position_both_appear():
                 try:
                     raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
                     received_b.append(json.loads(raw))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     break
 
     # Run both clients concurrently
@@ -110,13 +114,15 @@ async def test_edit_on_nonexistent_document_receives_error():
     try:
         async with websockets.connect(ws_url) as ws:
             # Try to send an op
-            msg = json.dumps({
-                "type": "insert",
-                "position": 0,
-                "text": "test",
-                "rev": 0,
-                "user_id": "test-user",
-            })
+            msg = json.dumps(
+                {
+                    "type": "insert",
+                    "position": 0,
+                    "text": "test",
+                    "rev": 0,
+                    "user_id": "test-user",
+                }
+            )
             await ws.send(msg)
 
             # Should receive an error or connection close

@@ -53,7 +53,7 @@ class ConnectionManager:
     async def _safe_send(self, ws: WebSocket, message: dict[str, Any], doc_id: str) -> None:
         try:
             await asyncio.wait_for(ws.send_json(message), timeout=5.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Broadcast timeout for client on doc %s", doc_id)
         except WebSocketDisconnect:
             self.disconnect(doc_id, ws)

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class DocumentCreate(BaseModel):
-    title: str
+    title: str = "Untitled"
 
 
 class DocumentUpdate(BaseModel):

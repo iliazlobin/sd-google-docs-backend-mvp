@@ -39,13 +39,15 @@ async def test_five_sequential_inserts_produce_strictly_increasing_revisions():
         # Insert 5 characters sequentially, each at increasing position
         chars = ["A", "B", "C", "D", "E"]
         for i, char in enumerate(chars):
-            msg = json.dumps({
-                "type": "insert",
-                "position": i,  # position 0, then 1, then 2...
-                "text": char,
-                "rev": i,       # base rev matches expected server state
-                "user_id": "test-user",
-            })
+            msg = json.dumps(
+                {
+                    "type": "insert",
+                    "position": i,  # position 0, then 1, then 2...
+                    "text": char,
+                    "rev": i,  # base rev matches expected server state
+                    "user_id": "test-user",
+                }
+            )
             await ws.send(msg)
 
             # Receive ack (or op broadcast)
@@ -59,8 +61,8 @@ async def test_five_sequential_inserts_produce_strictly_increasing_revisions():
                     assert rev is not None, f"No revision in response: {data}"
                     revisions.append(rev)
                     received = True
-            except asyncio.TimeoutError:
-                pytest.fail(f"Timeout waiting for response after insert #{i+1}")
+            except TimeoutError:
+                pytest.fail(f"Timeout waiting for response after insert #{i + 1}")
 
     assert received, "No responses received from WebSocket"
 
@@ -68,8 +70,7 @@ async def test_five_sequential_inserts_produce_strictly_increasing_revisions():
     assert len(revisions) == 5, f"Expected 5 revisions, got {len(revisions)}: {revisions}"
     for i in range(len(revisions) - 1):
         assert revisions[i] < revisions[i + 1], (
-            f"Revision {revisions[i]} not less than {revisions[i + 1]}. "
-            f"All revisions: {revisions}"
+            f"Revision {revisions[i]} not less than {revisions[i + 1]}. All revisions: {revisions}"
         )
 
     # First revision must be > 0
@@ -92,14 +93,30 @@ async def test_rest_get_reflects_updated_revision():
 
     async with websockets.connect(ws_url) as ws:
         # Insert "XY"
-        await ws.send(json.dumps({
-            "type": "insert", "position": 0, "text": "X", "rev": 0, "user_id": "u1",
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "insert",
+                    "position": 0,
+                    "text": "X",
+                    "rev": 0,
+                    "user_id": "u1",
+                }
+            )
+        )
         ack1 = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
 
-        await ws.send(json.dumps({
-            "type": "insert", "position": 1, "text": "Y", "rev": 1, "user_id": "u1",
-        }))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "insert",
+                    "position": 1,
+                    "text": "Y",
+                    "rev": 1,
+                    "user_id": "u1",
+                }
+            )
+        )
         ack2 = json.loads(await asyncio.wait_for(ws.recv(), timeout=5.0))
 
     # Now verify via HTTP GET
@@ -135,10 +152,17 @@ async def test_revision_never_repeats():
 
     async with websockets.connect(ws_url) as ws:
         for i in range(10):
-            await ws.send(json.dumps({
-                "type": "insert", "position": i, "text": "x",
-                "rev": i, "user_id": "u1",
-            }))
+            await ws.send(
+                json.dumps(
+                    {
+                        "type": "insert",
+                        "position": i,
+                        "text": "x",
+                        "rev": i,
+                        "user_id": "u1",
+                    }
+                )
+            )
             raw = await asyncio.wait_for(ws.recv(), timeout=5.0)
             data = json.loads(raw)
             rev = data.get("revision")
