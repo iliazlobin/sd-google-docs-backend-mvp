@@ -121,12 +121,13 @@ async def ws_edit(
             elif op_type == "delete":
                 broadcast_msg["length"] = length
 
-            # Send ack to sender
+            # Send ack to sender (via conn_manager so the per-connection send
+            # lock serialises it against any concurrent broadcast to the same WS)
             ack_msg = {
                 "type": "ack",
                 "revision": new_rev,
             }
-            await ws.send_json(ack_msg)
+            await conn_manager.send(ws, ack_msg, doc_id=doc_id_str)
 
             # Broadcast the op to everyone else (not the sender)
             await conn_manager.broadcast(doc_id_str, broadcast_msg, exclude=ws)
