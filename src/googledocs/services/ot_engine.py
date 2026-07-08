@@ -99,14 +99,18 @@ class OTEngine:
         base_rev: int,
         text: str | None = None,
         length: int | None = None,
-    ) -> tuple[int, str]:
-        """Accept a client op, transform, apply, persist, return (revision, updated_content).
+    ) -> tuple[int, str, list[dict]]:
+        """Accept a client op, transform, apply, persist, return (revision, content, missed_ops).
 
         Does NOT hold the per-document lock — the caller must hold OTEngine.lock_for(doc_id)
         and commit the session inside it.
 
         Returns:
-            (revision, new_content) — the assigned revision and resulting document text.
+            (revision, new_content, missed_ops) — the assigned revision, the resulting
+            document text, and the ops committed since ``base_rev`` that this sender has
+            not yet seen (revision > base_rev). The caller replays ``missed_ops`` back to
+            the sender so a client whose op arrives after a concurrent op still learns
+            about that op even if it was not in the broadcast pool when it was sent.
 
         Raises:
             StaleRevisionError: client's base_rev is too old for the ring buffer.
@@ -132,19 +136,24 @@ class OTEngine:
         # Build the client op
         client_op = TransOp(type=op_type, position=position, text=text, length=length)
 
-        # Get concurrent ops and transform
+        # Get concurrent ops (committed since the client's base_rev). These are ops
+        # the sender may not have received — a peer's broadcast can be lost if the
+        # sender had not yet joined the broadcast pool when the peer sent. We replay
+        # them to the sender so delivery is deterministic regardless of pool timing.
         concurrent_ops = self._get_concurrent_ops(buffer, base_rev)
+        missed_ops = [self._to_wire_op(op) for op in concurrent_ops]
+
         for concurrent in concurrent_ops:
             client_op = self._transform_against(client_op, concurrent)
             if client_op is None:
                 # Op was absorbed — return current revision with no change
-                return doc.revision, doc.content
+                return doc.revision, doc.content, missed_ops
 
         # Validate transformed op
         if client_op.type == "insert" and (client_op.text or "") == "":
-            return doc.revision, doc.content
+            return doc.revision, doc.content, missed_ops
         if client_op.type == "delete" and (client_op.length or 0) <= 0:
-            return doc.revision, doc.content
+            return doc.revision, doc.content, missed_ops
 
         # Assign next revision
         new_rev = doc.revision + 1
@@ -192,7 +201,23 @@ class OTEngine:
             )
         )
 
-        return new_rev, doc.content
+        return new_rev, doc.content, missed_ops
+
+    @staticmethod
+    def _to_wire_op(op: BufferedOp) -> dict:
+        """Serialise a buffered op to the wire ``op`` message shape."""
+        wire: dict = {
+            "type": "op",
+            "revision": op.revision,
+            "op_type": op.type,
+            "position": op.position,
+            "user_id": op.user_id,
+        }
+        if op.type == "insert":
+            wire["text"] = op.text
+        else:
+            wire["length"] = op.length
+        return wire
 
     async def get_current_revision(self, doc_id: str) -> int:
         """Read the current revision for a document."""

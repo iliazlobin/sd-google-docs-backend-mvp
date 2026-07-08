@@ -94,7 +94,7 @@ async def ws_edit(
                 # the next op's engine sees committed data when it reads.
                 lock = OTEngine.lock_for(doc_id_str)
                 async with lock:
-                    new_rev, _ = await engine.process(
+                    new_rev, _, missed_ops = await engine.process(
                         doc_id=doc_id_str,
                         user_id=user_id,
                         op_type=op_type,
@@ -120,6 +120,13 @@ async def ws_edit(
                 broadcast_msg["text"] = text
             elif op_type == "delete":
                 broadcast_msg["length"] = length
+
+            # Replay any ops the sender missed (committed since its base_rev).
+            # A peer's broadcast can be lost if this client had not yet joined the
+            # broadcast pool when the peer sent, so replaying here guarantees the
+            # sender learns about concurrent ops regardless of pool-join timing.
+            for missed in missed_ops:
+                await conn_manager.send(ws, missed, doc_id=doc_id_str)
 
             # Send ack to sender (via conn_manager so the per-connection send
             # lock serialises it against any concurrent broadcast to the same WS)
