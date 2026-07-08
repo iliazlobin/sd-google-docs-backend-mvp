@@ -57,19 +57,22 @@ async def ws_edit(
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
-                await ws.send_json(
-                    {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"}
+                await conn_manager.send(
+                    ws, {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"},
+                    doc_id=doc_id_str,
                 )
                 continue
 
             op_type = msg.get("type")
             if op_type not in ("insert", "delete"):
-                await ws.send_json(
+                await conn_manager.send(
+                    ws,
                     {
                         "type": "error",
                         "code": "INVALID_MESSAGE",
                         "message": f"Unknown type: {op_type}",
-                    }
+                    },
+                    doc_id=doc_id_str,
                 )
                 continue
 
@@ -80,12 +83,14 @@ async def ws_edit(
             length = msg.get("length")
 
             if position is None or base_rev is None:
-                await ws.send_json(
+                await conn_manager.send(
+                    ws,
                     {
                         "type": "error",
                         "code": "INVALID_MESSAGE",
                         "message": "Missing position or rev",
-                    }
+                    },
+                    doc_id=doc_id_str,
                 )
                 continue
 
@@ -105,7 +110,10 @@ async def ws_edit(
                     )
                     await session.commit()
             except StaleRevisionError as e:
-                await ws.send_json({"type": "error", "code": "STALE_REVISION", "message": str(e)})
+                await conn_manager.send(
+                        ws, {"type": "error", "code": "STALE_REVISION", "message": str(e)},
+                        doc_id=doc_id_str,
+                    )
                 continue
 
             # Broadcast to all clients

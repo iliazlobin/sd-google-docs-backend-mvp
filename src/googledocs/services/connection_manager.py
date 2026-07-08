@@ -22,7 +22,7 @@ class ConnectionManager:
     """Singleton that tracks WebSocket connections per document.
 
     All sends to a given WebSocket are serialised via a per-connection
-    ``asyncio.Lock`` so that ``_safe_send`` and ``send`` calls never
+    ``asyncio.Lock`` so that ``_lock_and_send`` and ``send`` calls never
     overlap on the ASGI send callable (which is not concurrent-safe).
     """
 
@@ -43,7 +43,7 @@ class ConnectionManager:
             del self._pools[doc_id]
         self._send_locks.pop(id(ws), None)
 
-    async def send(self, ws: WebSocket, message: dict[str, Any], doc_id: str | None = None) -> None:
+    async def send(self, ws: WebSocket, message: dict[str, Any], doc_id: str) -> None:
         """Deliver a JSON message to a single WebSocket, serialised via its lock.
 
         This is the counterpart of ``broadcast`` for one-to-one sends such as
@@ -55,7 +55,7 @@ class ConnectionManager:
         if lock is None:
             return  # already disconnected — nothing to protect
         async with lock:
-            await self._do_send(ws, message, doc_id or "")
+            await self._do_send(ws, message, doc_id)
 
     async def broadcast(
         self, doc_id: str, message: dict[str, Any], exclude: WebSocket | None = None
