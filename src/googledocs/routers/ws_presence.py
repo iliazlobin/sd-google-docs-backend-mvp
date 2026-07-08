@@ -49,7 +49,7 @@ async def ws_presence(
 
     # Send initial presence snapshot
     snapshot = svc.get_snapshot(doc_id_str)
-    await ws.send_json({"type": "presence", "cursors": snapshot})
+    await conn_manager.send(ws, {"type": "presence", "cursors": snapshot}, doc_id=doc_id_str)
 
     # Subscribe to Redis presence channel
     redis_queue = await svc.subscribe(doc_id_str)
@@ -59,7 +59,7 @@ async def ws_presence(
         try:
             while True:
                 data = await redis_queue.get()
-                await ws.send_json(data)
+                await conn_manager.send(ws, data, doc_id=doc_id_str)
         except asyncio.CancelledError:
             pass
         except WebSocketDisconnect:

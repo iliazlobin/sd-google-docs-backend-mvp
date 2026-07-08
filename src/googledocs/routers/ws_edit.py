@@ -57,19 +57,23 @@ async def ws_edit(
             try:
                 msg = json.loads(raw)
             except json.JSONDecodeError:
-                await ws.send_json(
-                    {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"}
+                await conn_manager.send(
+                    ws,
+                    {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"},
+                    doc_id=doc_id_str,
                 )
                 continue
 
             op_type = msg.get("type")
             if op_type not in ("insert", "delete"):
-                await ws.send_json(
+                await conn_manager.send(
+                    ws,
                     {
                         "type": "error",
                         "code": "INVALID_MESSAGE",
                         "message": f"Unknown type: {op_type}",
-                    }
+                    },
+                    doc_id=doc_id_str,
                 )
                 continue
 
@@ -80,12 +84,14 @@ async def ws_edit(
             length = msg.get("length")
 
             if position is None or base_rev is None:
-                await ws.send_json(
+                await conn_manager.send(
+                    ws,
                     {
                         "type": "error",
                         "code": "INVALID_MESSAGE",
                         "message": "Missing position or rev",
-                    }
+                    },
+                    doc_id=doc_id_str,
                 )
                 continue
 
@@ -94,7 +100,7 @@ async def ws_edit(
                 # the next op's engine sees committed data when it reads.
                 lock = OTEngine.lock_for(doc_id_str)
                 async with lock:
-                    new_rev, _ = await engine.process(
+                    new_rev, _, missed_ops = await engine.process(
                         doc_id=doc_id_str,
                         user_id=user_id,
                         op_type=op_type,
@@ -105,7 +111,11 @@ async def ws_edit(
                     )
                     await session.commit()
             except StaleRevisionError as e:
-                await ws.send_json({"type": "error", "code": "STALE_REVISION", "message": str(e)})
+                await conn_manager.send(
+                    ws,
+                    {"type": "error", "code": "STALE_REVISION", "message": str(e)},
+                    doc_id=doc_id_str,
+                )
                 continue
 
             # Broadcast to all clients
@@ -121,12 +131,20 @@ async def ws_edit(
             elif op_type == "delete":
                 broadcast_msg["length"] = length
 
-            # Send ack to sender
+            # Replay any ops the sender missed (committed since its base_rev).
+            # A peer's broadcast can be lost if this client had not yet joined the
+            # broadcast pool when the peer sent, so replaying here guarantees the
+            # sender learns about concurrent ops regardless of pool-join timing.
+            for missed in missed_ops:
+                await conn_manager.send(ws, missed, doc_id=doc_id_str)
+
+            # Send ack to sender (via conn_manager so the per-connection send
+            # lock serialises it against any concurrent broadcast to the same WS)
             ack_msg = {
                 "type": "ack",
                 "revision": new_rev,
             }
-            await ws.send_json(ack_msg)
+            await conn_manager.send(ws, ack_msg, doc_id=doc_id_str)
 
             # Broadcast the op to everyone else (not the sender)
             await conn_manager.broadcast(doc_id_str, broadcast_msg, exclude=ws)
