@@ -58,7 +58,8 @@ async def ws_edit(
                 msg = json.loads(raw)
             except json.JSONDecodeError:
                 await conn_manager.send(
-                    ws, {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"},
+                    ws,
+                    {"type": "error", "code": "INVALID_MESSAGE", "message": "Invalid JSON"},
                     doc_id=doc_id_str,
                 )
                 continue
@@ -111,9 +112,10 @@ async def ws_edit(
                     await session.commit()
             except StaleRevisionError as e:
                 await conn_manager.send(
-                        ws, {"type": "error", "code": "STALE_REVISION", "message": str(e)},
-                        doc_id=doc_id_str,
-                    )
+                    ws,
+                    {"type": "error", "code": "STALE_REVISION", "message": str(e)},
+                    doc_id=doc_id_str,
+                )
                 continue
 
             # Broadcast to all clients
